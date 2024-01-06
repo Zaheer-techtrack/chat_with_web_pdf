@@ -1,0 +1,845 @@
+
+<script>
+    var hash = document.getElementById('fileSelect').value;
+    saveToLocalStorage()
+    function upload() {
+        // var spinn = document.getElementsByClassName("spinner");
+        // spinn.style.display="block";
+        var query = document.getElementById('queryInput').value;
+        if (query.trim() !== '') {
+            var hashId = document.getElementById('fileSelect').value;
+            var queryRequest = new XMLHttpRequest();
+            queryRequest.open("POST","/api/chat/"+hashId, true);
+            queryRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            queryRequest.onreadystatechange = function (){
+                if (queryRequest.readyState == 4){
+                    if (queryRequest.status == 200){
+                        var response = JSON.parse(xhr.responseText);
+                        console.log('response'+ response.response);
+                        document.getElementById("response").innerHTML = response.response;
+                        document.getElementById("queryInput").value = "";
+                    }
+
+                }
+                else {
+                    alert('error')
+                }
+            }
+            queryRequest.send("query="+query);
+        } else {
+            var selectedFile = document.getElementById("inp-1").value;
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/chat/", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.onreadystatechange = function () {
+                // spinn.style.display="none";
+                if (xhr.readyState == 4) {
+                    if (xhr.status == 200) {
+                        var response = JSON.parse(xhr.responseText);
+                        console.log('response' + response.response);
+                        document.getElementById("main-5").innerHTML = response.summary;
+                        // document.getElementById("main-6").innerHTML = response.summary;
+
+                    } else {
+                        console.log('response-error');
+                    }
+                }
+            };
+            xhr.send("file=" + selectedFile);
+        }
+    }
+    function saveToLocalStorage() {
+            // Get the input field value
+            var inputValue = document.getElementById("queryInput").value;
+
+            // Check if the input value is not empty
+            if (inputValue.trim() !== "") {
+                // Get the existing values from local storage
+                var existingValues = localStorage.getItem(hash);
+
+                // Parse the existing values as JSON or initialize an empty array
+                var valuesArray = existingValues ? JSON.parse(existingValues) : [];
+
+                // Append the new value to the array
+                valuesArray.push(inputValue);
+
+                // Save the updated array to local storage
+                localStorage.setItem(hash, JSON.stringify(valuesArray));
+
+                // Notify the user
+                alert("Value appended to local storage!");
+
+                // Clear the input field
+
+
+                // Update the displayed values
+                updateSavedValues();
+            } else {
+                alert("Please enter a value before saving to local storage.");
+            }
+        }
+
+        // Load the saved values from local storage on page load
+    window.onload = function () {
+            updateSavedValues();
+        };
+
+        // Function to update the displayed saved values
+    function updateSavedValues() {
+            var savedValues = localStorage.getItem(hash);
+            var savedValuesContainer = document.getElementById('hash');
+
+            if (savedValues) {
+                var valuesArray = JSON.parse(savedValues);
+
+                // Display the values in a list
+                savedValuesContainer.innerHTML = "<strong>Saved Values:</strong><ul>" +
+                    valuesArray.map(function (value) {
+                        return "<li>" + value + "</li>";
+                    }).join("") +
+                    "</ul>";
+            } else {
+                savedValuesContainer.innerHTML = "<strong>No saved values.</strong>";
+            }
+        }
+</script>
+
+<p>
+from flask import Flask, request, jsonify,render_template, url_for, session, send_from_directory
+import os, random, string, datetime, logging
+from langchain.document_loaders import PDFPlumberLoader
+from langchain.vectorstores import Chroma
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.chat_models import ChatOpenAI
+from langchain.chains.question_answering import load_qa_chain
+
+
+app = Flask(__name__)
+app.secret_key = 'your_secret_key'
+UPLOAD_FOLDER = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.environ['OPENAI_API_KEY'] = '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'
+embeddings = OpenAIEmbeddings(openai_api_key='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')
+llm = ChatOpenAI(temperature=0.7)
+conversation_context = {'documents': None, 'last_query': None}
+
+# Define keywords that indicate a follow-up question
+follow_up_keywords = ['what is my name', 'who am i', 'tell me about me']
+def generate_random_hex_name(length=16):
+    return ''.join(random.choice(string.hexdigits) for _ in range(length))
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() == 'pdf'
+
+
+
+def delete_old_files(directory_path=os.path.join(os.getcwd(),'uploads')):
+    # Get the current time
+    current_time = datetime.datetime.now()
+
+    # Iterate over files in the directory
+    for filename in os.listdir(directory_path):
+        file_path = os.path.join(directory_path, filename)
+
+        # Check if the path is a file and not a directory
+        if os.path.isfile(file_path):
+            # Get the modification time of the file
+            modification_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
+
+            # Calculate the time difference
+            time_difference = current_time - modification_time
+
+            # Check if the file is older than or equal to 4 hours
+            if time_difference.total_seconds() >= 4 * 3600:
+                try:
+                    # Delete the file
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    filename = filename+'.pdf'
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/api/chat', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        delete_old_files()
+        # Manual file upload form
+        file = request.files['file']
+        if file and allowed_file(file.filename):
+            file_hash = generate_random_hex_name()
+            file.save(os.path.join('uploads', f"{file_hash}.pdf"))
+            file_path = os.path.join(os.getcwd(), 'uploads', f"{file_hash}.pdf")
+            try:
+                if 'retriever' not in app.config:
+                    loader = PDFPlumberLoader(file_path)
+                    pages = loader.load_and_split()
+                    embeddings = OpenAIEmbeddings(openai_api_key='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')
+                    db = Chroma.from_documents(pages, embeddings)
+                    retriever = db.as_retriever()
+                    app.config['retriever'] = retriever
+                retriever = app.config['retriever']
+                chain = load_qa_chain(ChatOpenAI(temperature=0), chain_type="stuff")
+                docs = retriever.get_relevant_documents('')
+                summary = chain.run(input_documents=docs, question='write short summary of this document.')
+                questions = chain.run(input_documents=docs, question='write top 3 question from this document')
+                questions = questions.split('\n')
+                return render_template('home.html', file_hash=file_hash, summary=summary, questions=questions)
+            except Exception as e:
+                return render_template('home.html',error='PDF has no text or has Image Data.')
+
+    return render_template('home.html')
+
+
+
+
+@app.route('/api/chat/<hash_name>', methods=['POST'])
+def chat_with_pdf(hash_name):
+    if request.method == 'POST':
+        # Initialize conversation_context as an empty list if it doesn't exist in the session
+
+
+        if os.path.exists(os.path.join(os.getcwd(), 'uploads', f"{hash_name}.pdf")):
+            file_path = os.path.join(os.getcwd(), 'uploads', f"{hash_name}.pdf")
+            print(f'file path is {file_path}')
+
+            loader = PDFPlumberLoader(file_path)
+            documents = loader.load_and_split()
+            db = Chroma.from_documents(documents, embeddings)
+            retriever = db.as_retriever()
+
+            chain = load_qa_chain(ChatOpenAI(temperature=0), chain_type="stuff")
+            docs = retriever.get_relevant_documents('Total number of pages in this documents')
+
+            # Get the relevant documents based on the user's query
+            query = request.form.get('query')
+            print(f'query is {query}')
+            output = chain.run(input_documents=docs, question=query)
+
+
+            # Render the result template with the query response
+            return jsonify({'result': hash_name, 'query': query, 'response': output})
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+
+
+
+
+</p>
+<p>
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Uploader</title>
+    <!-- Link to your CSS file -->
+    <link rel="stylesheet" type="text/css" href="https://cwp.taam.ai/chat_with_pdf.css">
+
+    <!--    https://cwp.taam.ai/chat_with_pdf.css-->
+</head>
+<body>
+<div class="spinner">
+
+</div>
+<div id='main' style="display: flex; flex-direction: row; align-content: center; justify-content: space-between; height: 90vh;">
+    <div id="div1"><h1>PDF Uploader</h1>
+    <form action="/api/chat" method="POST" enctype="multipart/form-data">
+        <input id="inp-1" type="file" name="file" accept="application/pdf">
+        <button id="btn-1" onclick="upload()" type="submit">Upload</button>
+    </form></div>
+
+    <div id="main-2" style="height: 100%; width: 100%; min-width: max-content;"  >
+        {% if file_hash %}
+        <embed src="{{ url_for('uploaded_file', filename=file_hash) }}" type="application/pdf"  style="height: 100%; width: 100%; min-width: max-content"  />
+        {% endif %}
+    </div>
+    {% if error %}
+    <p id="error">{{ error }}</p>
+    {% endif %}
+    <div id="main-3">
+        <div id="main-4">
+            {% if summary %}
+            <p id="main-5">{{ summary }}</p>
+            <br>
+            <h2 id="main-6"> Example Questions</h2>
+            <ul id="main-7">
+                {% for question in questions %}
+                <li id="main-8"> {{ question }}</li>
+                {% endfor %}
+            </ul>
+            <br>
+            {% endif %}
+        </div>
+        <div id="main-9">
+            {% if file_hash %}
+            <input type="hidden" id="fileSelect" name="file" value="{{file_hash}}">
+            <div id="hash"></div>
+            <form id="selectFileForm">
+                <p id="response">response:</p>
+
+                <input  type="text" id="queryInput" required>
+                <button id="main-10" type="button" onclick="chat()">Chat</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<!-- Link to your JS file -->
+<script src="https://cwp.taam.ai/chat_with_pdf.js"></script>
+
+<script>
+    var hash = document.getElementById('fileSelect').value;
+
+    function chat() {
+        var query = document.getElementById('queryInput').value;
+        var hashId = document.getElementById('fileSelect').value;
+        saveToLocalStorage();
+        var a = localStorage.getItem(hashId);
+        b = JSON.parse(a);
+        c = b.join('. ')
+        var queryRequest = new XMLHttpRequest();
+        queryRequest.open("POST", "/api/chat/" + hashId, true);
+        queryRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        queryRequest.onreadystatechange = function () {
+            if (queryRequest.readyState == 4) {
+                if (queryRequest.status == 200) {
+                    var response = JSON.parse(queryRequest.responseText);
+                    console.log('response' + response.response);
+                    document.getElementById("response").innerHTML = response.response;
+                    // Call saveToLocalStorage after each request
+
+                    document.getElementById("queryInput").value = "";
+
+
+                } else {
+
+                    console.table('Error: '+queryRequest.status);
+                }
+            }
+        };
+        queryRequest.send("query=" + c);
+        {#queryRequest.send("query=" + query);#}
+    }
+
+    function upload() {
+        var selectedFile = document.getElementById("inp-1").value;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/chat/", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState == 4) {
+                if (xhr.status == 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    console.log('response' + response.response);
+                    document.getElementById("main-5").innerHTML = response.summary;
+                } else {
+
+                    console.table('Error: '+ xhr.status);
+                }
+            }
+        };
+        xhr.send("file=" + selectedFile);
+    }
+
+    function saveToLocalStorage() {
+        var inputValue = document.getElementById("queryInput").value;
+
+        if (inputValue.trim() !== "") {
+            var existingValues = localStorage.getItem(hash);
+            var valuesArray = existingValues ? JSON.parse(existingValues) : [];
+            valuesArray.push(inputValue);
+            localStorage.setItem(hash, JSON.stringify(valuesArray));
+            updateSavedValues()
+        }
+    }
+
+    window.onload = function () {
+        // Call updateSavedValues on page load
+        updateSavedValues();
+    };
+
+    function updateSavedValues() {
+        var savedValues = localStorage.getItem(hash);
+        var savedValuesContainer = document.getElementById('hash');
+
+        if (savedValues) {
+            var valuesArray = JSON.parse(savedValues);
+
+            savedValuesContainer.innerHTML = "<strong>Saved Values:</strong><ul>" +
+                valuesArray.map(function (value) {
+                    return "<li>" + value + "</li>";
+                }).join("") +
+                "</ul>";
+        } else {
+            savedValuesContainer.innerHTML = "<strong>No saved values.</strong>";
+        }
+    }
+</script>
+
+</body>
+</html>
+
+</p>
+
+<div>
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Uploader</title>
+    <!-- Link to your CSS file -->
+    <link rel="stylesheet" type="text/css" href="https://cwp.taam.ai/chat_with_pdf.css">
+
+    <!--    https://cwp.taam.ai/chat_with_pdf.css-->
+</head>
+<body>
+<div class="spinner">
+
+</div>
+<div id='main' style="display: flex; flex-direction: row; align-content: center; justify-content: space-between; height: 90vh;">
+    <div id="div1"><h1>PDF Uploader</h1>
+    <form action="/api/chat" method="POST" enctype="multipart/form-data">
+        <input id="inp-1" type="file" name="file" accept="application/pdf">
+        <button id="btn-1" onclick="upload()" type="submit">Upload</button>
+    </form></div>
+
+    <div id="main-2" style="height: 100%; width: 100%; min-width: max-content;"  >
+        {% if file_hash %}
+        <embed src="{{ url_for('uploaded_file', filename=file_hash) }}" type="application/pdf"  style="height: 100%; width: 100%; min-width: max-content"  />
+        {% endif %}
+    </div>
+    {% if error %}
+    <p id="error">{{ error }}</p>
+    {% endif %}
+    <div id="main-3">
+        <div id="main-4">
+            {% if summary %}
+            <p id="main-5">{{ summary }}</p>
+            <br>
+            <h2 id="main-6"> Example Questions</h2>
+            <ul id="main-7">
+                {% for question in questions %}
+                <li id="main-8"> {{ question }}</li>
+                {% endfor %}
+            </ul>
+            <br>
+            {% endif %}
+        </div>
+        <div id="main-9">
+            {% if file_hash %}
+            <input type="hidden" id="fileSelect" name="file" value="{{file_hash}}">
+            <div id="hash"></div>
+            <form id="selectFileForm">
+                <p id="response">response:</p>
+
+                <input  type="text" id="queryInput" required>
+                <button id="main-10" type="button" onclick="chat()">Chat</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<!-- Link to your JS file -->
+<script src="https://cwp.taam.ai/chat_with_pdf.js"></script>
+
+<script>
+    var hash = document.getElementById('fileSelect').value;
+
+    function chat() {
+        var query = document.getElementById('queryInput').value;
+        var hashId = document.getElementById('fileSelect').value;
+        saveToLocalStorage();
+        var a = localStorage.getItem(hashId);
+        b = JSON.parse(a);
+        c = b.join('-->  ')
+        var queryRequest = new XMLHttpRequest();
+        queryRequest.open("POST", "/api/chat/" + hashId, true);
+        queryRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        queryRequest.onreadystatechange = function () {
+            if (queryRequest.readyState == 4) {
+                if (queryRequest.status == 200) {
+                    var response = JSON.parse(queryRequest.responseText);
+                    console.log('response' + response.response);
+                    document.getElementById("response").innerHTML = response.response;
+                    // Call saveToLocalStorage after each request
+
+                    document.getElementById("queryInput").value = "";
+
+
+                } else {
+
+                    console.table('Error: '+queryRequest.status);
+                }
+            }
+        };
+        queryRequest.send("query=" + c);
+        {#queryRequest.send("query=" + query);#}
+    }
+
+    function upload() {
+        var selectedFile = document.getElementById("inp-1").value;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/chat/", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState == 4) {
+                if (xhr.status == 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    console.log('response' + response.response);
+                    document.getElementById("main-5").innerHTML = response.summary;
+                } else {
+
+                    console.table('Error: '+ xhr.status);
+                }
+            }
+        };
+        xhr.send("file=" + selectedFile);
+    }
+
+    function saveToLocalStorage() {
+        var inputValue = document.getElementById("queryInput").value;
+
+        if (inputValue.trim() !== "") {
+            var existingValues = localStorage.getItem(hash);
+            var valuesArray = existingValues ? JSON.parse(existingValues) : [];
+            valuesArray.push(inputValue);
+            localStorage.setItem(hash, JSON.stringify(valuesArray));
+            updateSavedValues()
+        }
+    }
+
+    window.onload = function () {
+        // Call updateSavedValues on page load
+        updateSavedValues();
+    };
+
+    function updateSavedValues() {
+        var savedValues = localStorage.getItem(hash);
+        var savedValuesContainer = document.getElementById('hash');
+
+        if (savedValues) {
+            var valuesArray = JSON.parse(savedValues);
+
+            savedValuesContainer.innerHTML = "<strong>Saved Values:</strong><ul>" +
+                valuesArray.map(function (value) {
+                    return "<li>" + value + "</li>";
+                }).join("") +
+                "</ul>";
+        } else {
+            savedValuesContainer.innerHTML = "<strong>No saved values.</strong>";
+        }
+    }
+</script>
+
+</body>
+</html>
+
+</div>
+<div date="23-12-23">
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload with XMLHttpRequest</title>
+    <style>
+        #main {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+        }
+        .keys {
+            width: 100%;
+            text-align: right;
+        }
+        .values {
+            width: 100%;
+            text-align: left;
+        }
+        #col-2 {
+            height: 90vh;
+            width: max-content;
+        }
+        #pdf {
+            height: 100%;
+            width: max-content;
+        }
+        #loader {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loader-spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div id="loader">
+    <div class="loader-spinner"></div>
+</div>
+<div id="main">
+    <div id="col-1">
+        <div id="menu">
+            <form id="uploadForm">
+                <input id="inp-1" type="file" name="file" accept="application/pdf">
+                <button id="btn-1" type="button" onclick="upload()">Upload</button>
+            </form>
+        </div>
+        <div id="chat-history">
+
+        </div>
+    </div>
+    <div id="col-2">
+        <div id="pdf">
+
+        </div>
+    </div>
+    <div id="col-3">
+        <div id="chat">
+            <div id="summary">
+            </div>
+            <div id="chat-list">
+
+            </div>
+            <div id="chat-form" style="display: none;">
+                <input type="hidden" id="file_hash">
+                <input  type="text" id="queryInput" required>
+                <button onclick="chat()" type="button">Ask</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<script>
+    function generateRandomHex(length) {
+    let result = '';
+    const characters = '0123456789ABCDEF';
+
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+
+    return result;
+}
+    function upload() {
+        var fileInput = document.getElementById('inp-1');
+        var file = fileInput.files[0];
+
+        if (!file) {
+            alert('Please select a file');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', file);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/chat', true);
+        showLoader()
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    var existingValues = localStorage.getItem(response.file_hash);
+                    var valuesArray = existingValues ? JSON.parse(response) : [];
+                    var chatArray = {};
+                    valuesArray.push({"file_hash":response.file_hash,"file_name":response.file_name, "summary":response.summary,"question":response.question, "chat":chatArray})
+                    localStorage.setItem(response.file_hash, JSON.stringify(valuesArray));
+                    updateUploadState(response.file_hash);
+                    chat_history()
+                    hideLoader()
+
+                } else {
+                    // Request failed, handle the error here
+                    console.error('Error:', xhr.status, xhr.statusText);
+                    hideLoader()
+                }
+            }
+        };
+
+        xhr.send(formData);
+    }
+    function updateUploadState(file_hash){
+        var uploadDetails = document.getElementById("summary");
+        var pdf = document.getElementById("pdf");
+        var embedElement = document.createElement("embed");
+        var response = JSON.parse(localStorage.getItem(file_hash));
+        console.log(response)
+        uploadDetails.innerHTML = "<h4>File name: "+response[0].file_name+" </h4><h2>Summary:</h2><p>"+response[0].summary+"</p>"+
+        "<h2>Suggested Questions:</h2><ul>"+
+            response[0].question.map(function (value){
+                var b = generateRandomHex(6);
+                return "<li onclick='chat2(\"" + b + "\")' id='" + b + "'>" + value + "</li>";
+            }).join("")+
+            "</ul>"
+
+        embedElement.type = "application/pdf";
+        embedElement.style.height = "100%";
+        embedElement.style.width = "100%";
+        embedElement.src = "/uploads/"+response[0].file_hash;
+        pdf.innerHTML = embedElement.outerHTML;
+        document.getElementById("chat-form").style.display = "block";
+        document.getElementById("file_hash").value = response[0].file_hash;
+        document.getElementById("chat-list").innerHTML = '';
+        chat_history()
+
+
+    }
+    function chat(){
+        showLoader()
+        var file_hash = document.getElementById("file_hash").value;
+        var query = document.getElementById("queryInput").value;
+        var localstoragedata = JSON.parse(localStorage.getItem(file_hash));
+        localstoragedata[0].chat[query]="......";
+        localStorage.setItem(file_hash,JSON.stringify(localstoragedata));
+        var keyArr = Object.keys((JSON.parse(localStorage.getItem(file_hash))[0].chat))
+        c = keyArr.join('-->  ')
+        var queryRequest = new XMLHttpRequest();
+        queryRequest.open("POST", "/api/chat/" + file_hash, true);
+        queryRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        queryRequest.onreadystatechange = function () {
+            if (queryRequest.readyState == 4) {
+                if (queryRequest.status == 200) {
+                    var response = JSON.parse(queryRequest.responseText);
+                    var locadata = JSON.parse(localStorage.getItem(file_hash));
+                    locadata[0].chat[query]=response.response;
+                    localStorage.setItem(file_hash,JSON.stringify(locadata));
+                    kvArr = (JSON.parse(localStorage.getItem(file_hash)))[0].chat;
+                    var chatlist = document.getElementById("chat-list");
+                    chatlist.innerHTML = Object.entries(kvArr).map(function ([k, v]) {
+                        return "<p class='keys'>" + k + "</p><p class='values'>" + v + "</p>";
+                            }).join('');
+                    console.log('response' + response.response);
+                    {#document.getElementById("response").innerHTML = response.response;#}
+                    // Call saveToLocalStorage after each request
+
+                    document.getElementById("queryInput").value = "";
+                    chat_history()
+                    hideLoader()
+
+
+                } else {
+
+                    console.table('Error: '+queryRequest.status);
+                    hideLoader()
+                }
+            }
+        };
+        queryRequest.send("query="+c);
+
+
+    }
+    function chat2(b){
+        showLoader()
+        var query = document.getElementById(b).innerText;
+        var file_hash = document.getElementById("file_hash").value;
+        var localstoragedata = JSON.parse(localStorage.getItem(file_hash));
+        localstoragedata[0].chat[query]="......";
+        localStorage.setItem(file_hash,JSON.stringify(localstoragedata));
+        var keyArr = Object.keys((JSON.parse(localStorage.getItem(file_hash))[0].chat))
+        c = keyArr.join('-->  ')
+        var queryRequest = new XMLHttpRequest();
+        queryRequest.open("POST", "/api/chat/" + file_hash, true);
+        queryRequest.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        queryRequest.onreadystatechange = function () {
+            if (queryRequest.readyState == 4) {
+                if (queryRequest.status == 200) {
+                    var response = JSON.parse(queryRequest.responseText);
+                    var locadata = JSON.parse(localStorage.getItem(file_hash));
+                    locadata[0].chat[query]=response.response;
+                    localStorage.setItem(file_hash,JSON.stringify(locadata));
+                    kvArr = (JSON.parse(localStorage.getItem(file_hash)))[0].chat;
+                    var chatlist = document.getElementById("chat-list");
+                    chatlist.innerHTML = Object.entries(kvArr).map(function ([k, v]) {
+                        return "<p class='keys'>" + k + "</p><p class='values'>" + v + "</p>";
+                            }).join('');
+                    console.log('response' + response.response);
+                    {#document.getElementById("response").innerHTML = response.response;#}
+                    // Call saveToLocalStorage after each request
+
+                    document.getElementById("queryInput").value = "";
+                    chat_history()
+                    hideLoader()
+
+
+                } else {
+
+                    console.table('Error: '+queryRequest.status);
+                    hideLoader()
+                }
+            }
+        };
+        queryRequest.send("query="+c);
+
+
+    }
+    function chat_history(){
+        var chatArr = Object.keys(localStorage);
+        var chatHistory = document.getElementById("chat-history");
+        chatHistory.innerHTML = "<h2>Chat History:</h2><ul>"+chatArr.map(function (a){
+            var b = (JSON.parse(localStorage.getItem(a)))[0];
+            var file_name = b.file_name;
+            return "<li key='"+a+"' onclick=\"loadChat('"+a+"')\">"+file_name+"</li>";
+        }).join("")+"</ul>";
+    }
+    function loadChat(a){
+        var response = (JSON.parse(localStorage.getItem(a)))[0];
+        updateUploadState(response.file_hash);
+        var chatlist = document.getElementById("chat-list");
+        chatlist.innerHTML = Object.entries(response.chat).map(function ([k, v]) {
+                        return "<p class='keys'>" + k + "</p><p class='values'>" + v + "</p>";
+                            }).join('');
+
+    }
+    window.onload = function (){
+        chat_history()
+    }
+    function showLoader() {
+        document.getElementById('loader').style.display = 'flex';
+    }
+
+    // Function to hide loader
+    function hideLoader() {
+        document.getElementById('loader').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
+
+</div>

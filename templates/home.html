@@ -1,0 +1,374 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+    Chat With PDF
+{% endblock %}
+
+{% block content %}
+    <input type="hidden" id="page" value="pdf">
+<div id="main">
+      <!-- side bar start -->
+      <aside class="sidebar-wrapper">
+        <div id="col-1">
+          <a class="logo-wrapper">
+            <div class="icon-wrapper">
+              <img src="{{ url_for('static', filename='images/Logo.svg') }}" alt="" />
+            </div>
+            <span>TAAM.Ai</span>
+          </a>
+                          <div id="chat-history">
+                    <ul class="tabs-wrapper">
+                        <li>
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#file-upload-modal"
+                               class="new-chat-btn curser-pointer">
+                  <span class="icon-wrapper">
+                    <i class="fa-solid fa-plus"></i>
+                  </span>
+                                <span>New Chat</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('web_loader') }}" class="chat-btn pdf-btn" id="chat-with-pdf">
+                                <i class="fa-solid fa-globe"></i>
+                                <span>Chat width Websites</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="chat-btn web-btn" id="chat-with-web">
+                                <i class="fa-regular fa-pen-to-square"></i>
+                                <span>Ai Chat</span>
+                            </a>
+                        </li>
+                    </ul>
+                    <div class="chat-inner-wrapper">
+                        <div class="heading-wrapper">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <h3>Chat history</h3>
+                            <i class="fa-solid fa-chevron-down"></i>
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </div>
+                        <ul id="chat-list-1">
+
+                        </ul>
+                    </div>
+                </div>
+
+
+          <div class="profile-div">
+            <div class="profile-inner-wrapper">
+              <div class="img-wrapper">
+                <i class='fa-regular fa-circle-user'></i>
+              </div>
+              <h4>Tameem Hezam</h4>
+              <span role="button" type="button" class="scan-modal-btn">
+                <i class="fa-solid fa-mobile-button"></i>
+              </span>
+            </div>
+            <a href="#" class="upgrade-btn">
+              <span>Upgrade to Pro</span>
+              <i class="fa-solid fa-crown"></i>
+            </a>
+          </div>
+        </div>
+        <span class="wrapp-btn">
+          <i class="fa-solid fa-chevron-right"></i>
+          <i class="fa-solid fa-chevron-left"></i>
+        </span>
+      </aside>
+
+      <!-- side bar end -->
+
+      <div class="right-div">
+        <div class="header-div">
+          <div class="document-name-wrapper">
+            <div class="icon-wrapper">
+              <i class="fa-regular fa-file-pdf"></i>
+            </div>
+            <span class="document-name text-truncate" id="source-ref">
+              pdf-js-express-default-doc-v2.pdf
+            </span>
+          </div>
+          <div class="down-load-wrapper">
+            <span class="download-icon">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i>
+            </span>
+            <span class="mobile-pdf-show-btn">
+              <i class="fa-solid fa-eye"></i>
+              <i class="fa-solid fa-eye-slash"></i>
+            </span>
+            <span class="gpt-btn">
+              <span class="icon-wrapper">
+                <img src="{{ url_for('static', filename='icons/chat-gpt.svg') }}" alt="" />
+              </span>
+              <span>GPT-3.5</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="right-inner-div">
+          <div id="col-2">
+            <div id="pdf">
+              <embed
+                type="application/pdf"
+                id="embed-wrapper"
+                src="{{ url_for('static', filename='images/ARTIFICIAL_INTELLIGENCE.pdf') }}"
+              />
+            </div>
+          </div>
+          <div id="col-3">
+            <div class="main-chat-wrapper">
+              <div id="chat">
+                <div class="user-chat-wrapper">
+                  <div class="img-wrapper">
+                    <i class='fa-regular fa-circle-user'></i>
+                  </div>
+                  <div class="content-wrapper">
+                    <div class="icon-wrapper">
+                      <i class="fa-solid fa-file-pdf"></i>
+                    </div>
+                    <div class="content-inner-wrapper">
+                      <div class="chat-inner-wrapper">
+                        <strong id="source-name">ARTIFICIAL INTELLIGENCE.pdf</strong>
+                        <span>1 pages</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div id="summary">
+
+                </div>
+                <div class="more-action-wrapper">
+                  <div class="summery-action-warpper">
+                    <ul>
+                      <li>
+                        <span
+                          class="copy-icon"
+                          onclick="copyToClipboard('summary')"
+                        >
+                          <i
+                            class="fa-regular fa-thumbs-up"
+                            tabindex="0"
+                            data-bs-toggle="tooltip"
+                            data-bs-title="Disabled tooltip"
+                          ></i>
+                        </span>
+                      </li>
+                      <li>
+                        <span
+                          class="copy-icon"
+                          onclick="copyToClipboard('summary')"
+                        >
+                          <i class="fa-regular fa-thumbs-down"></i>
+                        </span>
+                      </li>
+                      <li>
+                        <span
+                          class="copy-icon"
+                          onclick="copyToClipboard('summary')"
+                        >
+                          <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                        </span>
+                      </li>
+                      <li>
+                        <span
+                          class="copy-icon"
+                          onclick="copyToClipboard('summary')"
+                        >
+                          <i class="fa-solid fa-copy"></i>
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div class="drop-down-wrapper">
+                    <div class="dropdown">
+                      <span
+                        type="button"
+                        class="btn dropdown-toggle btn-sm"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        ><i class="fa-regular fa-gem"></i> Enrich</span
+                      >
+                      <ul class="dropdown-menu">
+                        <li>
+                          <a class="dropdown-item" href="#">
+                            <span>translate</span>
+                            <i class="fa-solid fa-chevron-right"></i>
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item" href="#"
+                            ><span>Auto enrich full text</span></a
+                          >
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="chat-list">
+
+
+                </div>
+              </div>
+              <div id="chat-form">
+                <div class="form-action-wrapper d-flex align-items-center">
+                  <div class="paper-suggestion-wrapper dropdown">
+                    <button
+                      type="button"
+                      class="btn btn-sm bg-transparent border-0 dropdown-toggle"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                    >
+                      Standard
+                    </button>
+                    <ul class="dropdown-menu">
+                      <li>
+                        <span class="p-2 heading-dropdown"
+                          >Choose file Type</span
+                        >
+                      </li>
+                      <li>
+                        <a class="dropdown-item active" href="#">
+                          <span>Standard</span>
+                          <i class="fa-solid fa-check"></i>
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="#">
+                          <span>Paper </span>
+                          <i class="fa-solid fa-check"></i>
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="#">
+                          <span>Resume </span>
+                          <i class="fa-solid fa-check"></i>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div class="dropdown summer-suggestion-wrapper">
+                    <a
+                      href="#"
+                      type="button"
+                      class="dropdown-toggle hide-arrow"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                    >
+                      summery
+                    </a>
+                    <ul class="dropdown-menu">
+                      <li>
+                        <a class="dropdown-item" href="#"
+                          >Summarize in one sentence to capture the main
+                          idea.</a
+                        >
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="#"
+                          >Summarize into 5 bullet points.</a
+                        >
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="#"
+                          >Make summary longer, human-like but concise and
+                          comprehensive.</a
+                        >
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="#"
+                          >Provide a detailed summary with key quotes.</a
+                        >
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="form-inner-wrapper">
+                  <input
+                    type="hidden"
+                    id="file_hash"
+                  />
+                  <input
+                    type="text"
+                    id="queryInput"
+                    placeholder="Send a message"
+                    required=""
+                  />
+                  <button onclick="chat()" type="button" class="ask-button">
+                    <i class="fa-solid fa-paper-plane"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scan-modal-wrapper">
+        <div class="modal-header-custom">
+          <h3>Get the app now</h3>
+          <span class="close-modal-btn" role="button" type="button">
+            <i class="fa-solid fa-xmark"></i>
+          </span>
+        </div>
+        <div class="modal-body-custom">
+          <p>
+            Visit the App Store or scan with your phone to<br />
+            download instantly
+          </p>
+          <div class="inner-div">
+            <a href="#" target="_blank" class="i-tune-btn">
+              <span class="icon-wrapper">
+                <i class="fa-brands fa-apple"></i>
+              </span>
+              <div class="content-wrapper">
+                <span>Download on the</span>
+                <span>App Store</span>
+              </div>
+            </a>
+            <div class="qr-code-wrapper">
+              <img
+                class="qrcode"
+                src="{{ url_for('static', filename='images/app-qr-code.png') }}"
+                alt=""
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="empty-bg-wrapper"></div>
+
+ {#file upload ,modal start#}
+        <div class="modal fade" id="file-upload-modal" data-bs-backdrop="static" tabindex="-1"
+             aria-labelledby="exampleModalLabel"
+             aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5" id="exampleModalLabel">Upload PDF Here</h1>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                        <input type="file" accept="application/pdf" id="inp-1" class="form-control" name="file" oninput="validateInput()">
+                        <div id="urlErrorMessage" class="text-danger"></div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="clearInput()">
+                            Close
+                        </button>
+                        <button id="up-btn" type="button" onclick="submitForm()" class="btn btn-primary">Let's Chat</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {#file upload ,modal end#}
+    </div>
+{% endblock %}
+
+{% block script %}
+
+{% endblock %}
+

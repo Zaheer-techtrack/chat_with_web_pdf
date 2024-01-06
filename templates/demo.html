@@ -1,0 +1,23 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF.js Example</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf_viewer.min.css" integrity="sha512-v7RQDI7qsfFNaXRzzylpsVV7ncQBdyozLze5YNgox/0z4Mc3Ellt2dBd0CbmufeD7IIh5TCJQ8ORAF/KvzVITg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <canvas id="pdfCanvas"></canvas>
+    <script>
+        const eventSource = new EventSource('/testing');
+        eventSource.onmessage = function (event){
+            console.log(event.data)
+        }
+        eventSource.onerror = function (error){
+            console.log(error)
+        }
+    </script>
+</body>
+</html>
